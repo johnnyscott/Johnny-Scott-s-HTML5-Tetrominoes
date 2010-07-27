@@ -1,0 +1,537 @@
+<html>
+ <head>
+  <style>
+   html, body {
+    margin:0px;
+    padding:0px;
+    overflow:hidden;
+   }
+  #debug {
+   position:absolute;
+   top:0px;
+   right:0px;
+   width:200px;
+   height:520px;
+   overflow:scroll;
+   background:blue;
+   color:white;
+   font-family:monospace;
+   padding:3px 4px;
+   font-size:16px;
+   white-space:nowrap;
+  }
+  </style>
+  <script>
+  
+  /*
+    size of play area - 10 wide X 18 tall
+  */
+   var iFrameRate = 30;
+   var iLevel = 1;
+   var iDropCounter = 0;
+   var iDropDelay = 30; // frames between dropping shape one row down
+   var iMouseX = 0;
+   var iMouseY = 0;
+   var oContext;
+   var oDebug;
+   var iTraceCnt = 0;
+   var iMAX_TRACE = 10;
+   var bIsPaused = true;
+   var iFrameNumber = 0;
+   var iCanvasSize = 450;
+   
+   var iImagesToLoad = 0;
+   var iImagesLoaded = 0;  
+   var iDlInterval = null; // id of interval for display loop
+   
+   // key codes
+   var iW_KEY =87;
+   var iA_KEY =65;
+   var iS_KEY =83;
+   var iD_KEY =68;
+   // key states
+   var bWDown = false;
+   var bADown = false;
+   var bSDown = false;
+   var bDDown = false;
+   var bWRepeat = true;
+   
+   var aImageSet = {};
+   
+   var aColors = {'shapes':['#f0a000','#0000f0','#f0f000','#a000f0','#f00000','#00f000','#00f0f0']};
+   
+   // set of shapes each with 4 rotations
+if(true){
+   var aShapes = [
+                  [// L1
+                   [[0,0,0],
+                    [0,0,0],
+                    [1,1,1],
+                    [1,0,0]] ,
+                    
+                   [[0,0],
+                    [1,1],   
+                    [0,1],      
+                    [0,1]],
+                    
+                   [[0,0,0],
+                    [0,0,1],
+                    [1,1,1]], 
+                    
+                   [[0,0,0],
+                    [0,1,0],
+                    [0,1,0],
+                    [0,1,1]]
+                    
+                                      
+                   ],
+                   
+                  [// L2
+                   [[0,0,0],
+                    [0,0,0],
+                    [1,1,1],
+                    [0,0,1]], 
+                    
+                   [[0,0],
+                    [0,1],
+                    [0,1],
+                    [1,1]],
+                    
+                   [[0,0,0],
+                    [1,0,0],
+                    [1,1,1]],
+                    
+                   [[0,0,0],
+                    [0,1,1],   
+                    [0,1,0],      
+                    [0,1,0]]                    
+                                       
+                   ],
+                   
+                  [// Box - all rotations are the same
+                   [[0,0,0],
+                    [0,0,0],   
+                    [0,1,1],   
+                    [0,1,1]]
+                  ],
+                   
+                  [// T
+                   [[0,0,0],
+                    [0,0,0],
+                    [1,1,1],   
+                    [0,1,0]],
+                    
+                   [[0,0],
+                    [0,1],
+                    [1,1],
+                    [0,1]], 
+                    
+                   [[0,0,0],
+                    [0,1,0],
+                    [1,1,1]],
+                    
+                   [[0,0,0],
+                    [0,1,0],
+                    [0,1,1],
+                    [0,1,0]] 
+                    
+                  ],
+                   
+                  [// Z - guess it only has two rotations
+                   [[0,0,0],
+                    [0,0,0],
+                    [1,1,0],   
+                    [0,1,1]],
+                    
+                   [[0,0],
+                    [0,1],
+                    [1,1],
+                    [1,0]]                   
+                  ],  
+                  
+                  [// S - guess it only has two rotations
+                   [[0,0,0],
+                    [0,0,0],
+                    [0,1,1],   
+                    [1,1,0]],
+                    
+                   [[0,0],
+                    [1,0],
+                    [1,1],
+                    [0,1]]                   
+                  ], 
+                  
+                  [// I - guess it only has two rotations
+                   [[0,0,0,0],
+                    [0,0,0,0],
+                    [1,1,1,1]],
+                    
+                   [[0,1],   
+                    [0,1],   
+                    [0,1],   
+                    [0,1]]                                                         
+                  ]  
+                  
+                 ];
+} else {/*do nothing*/}
+   var iStartRow    = -1;
+   var iStartColumn = 3;
+   var oPlayer = { 'iShapeIndex':-1, 'iRotationIndex':-1,  'iRow':iStartRow, 'iColumn':iStartColumn, 'aGameBoard':[] };
+   
+   var iGridX       = 60;
+   var iGridY       = 10;
+   
+   var iGridColumns = 10;
+   var iGridRows    = 18;
+   var iEmptyValue  = -1; // value representing an empty spot in the game board
+
+   var iBlockSize   = 20; // height and width of a trominoe unit
+   
+   var sGridStrokeStyle = 'rgb(128,128,128)'; // color of play field grid
+   var iGridStrokeWidth = 1;
+   
+   function o(sId){ return document.getElementById(sId); }
+   function trace(sStr){
+    if(iTraceCnt > iMAX_TRACE){oDebug.innerHTML = ''; iTraceCnt = 0; }
+    oDebug.innerHTML += sStr + '<br/>' ;
+    oDebug.scrollTop = oDebug.scrollHeight;
+    iTraceCnt++;
+   }
+   
+   function togglePause(e){
+   
+    if(e.type=='mouseover' && iDlInterval == null){
+     iDlInterval = setInterval('displayLoop()',Math.ceil(1000/iFrameRate));      
+     bIsPaused = false;     
+    }else if(e.type=='mouseout'){
+     clearInterval(iDlInterval);
+     iDlInterval = null;
+     bIsPaused = true;
+    }else {/*should not happen*/}
+    
+   }
+   
+   function startDisplayLoop(){
+     // start display loop
+     iDlInterval = setInterval('displayLoop()', Math.ceil(1000/iFrameRate)); 
+     bIsPaused = false;      
+     
+     // register mouse pausing
+     o('canvas0').onmouseout = togglePause;
+     o('canvas0').onmouseover = togglePause;
+   
+   }
+   
+   // handler for images loaded completely
+   function imageLoaded(e){
+    iImagesLoaded++;
+    // are all images loaded?
+    if(iImagesLoaded == iImagesToLoad){
+     startDisplayLoop();
+    } else {/*do nothing*/}
+   }
+   
+   function loadImages(){
+    // load images
+    for( var sImageId in aImageSet){
+     iImagesToLoad++;
+     var sPath = aImageSet[sImageId].path;
+     aImageSet[sImageId].object = new Image()
+     aImageSet[sImageId].object.onload = imageLoaded;
+     aImageSet[sImageId].object.src = sPath;
+    }
+    
+   }
+   
+   function init(){
+    // set global objects
+    oContext = o('canvas0').getContext('2d');         
+    oDebug = o('debug');
+        
+    //initialize gameboard with empties
+    for(var i = 0; i < iGridRows; i++){
+     oPlayer.aGameBoard[i] = [];
+     for(var j = 0; j < iGridColumns; j++){      
+      oPlayer.aGameBoard[i][j] = iEmptyValue;   
+     }
+    }    
+   
+    if(aImageSet.length > 0){
+     // start loading images
+     loadImages();        
+    } else {
+     startDisplayLoop()
+    }
+   }
+   
+   // keyboardHandler - handles keyboard events
+   function keyboardHandler(e){   
+    
+    switch(e.type){
+      case 'keydown':         
+        switch(e.keyCode){
+         case iW_KEY: bWDown = true; break;
+         case iA_KEY: bADown = true; break;
+         case iS_KEY: bSDown = true; break;
+         case iD_KEY: bDDown = true; break;
+         default:/*do nothing*/break;
+        }       
+      break;
+      
+      case 'keyup': 
+       switch(e.keyCode){
+         case iW_KEY: bWDown = false; bWRepeat = true; break;
+         case iA_KEY: bADown = false; break;
+         case iS_KEY: bSDown = false; break;
+         case iD_KEY: bDDown = false; break;
+         default:/*do nothing*/break;
+        }
+        break;
+      
+      default:/*do nothing*/break;
+    }
+    
+   }
+   
+   // mouseHandler - handles mouse events
+   function mouseHandler(e){
+    switch(e.type){
+     case 'mousemove':
+     iMouseX = e.clientX;
+     iMouseY = e.clientY;   
+     break;
+     case 'mousedown':
+     break;
+    }
+   }	
+      
+   // draws grid 
+   function drawGrid(){
+    oContext.strokeStyle = sGridStrokeStyle;
+    oContext.lineWidth = iGridStrokeWidth;
+    
+    // draw columns
+    for(var i = 0; i <= iGridColumns; i++){
+      var iStartX = (i * iBlockSize) + iGridX;
+      var iStartY =  iGridY;
+      var iEndX = iStartX;
+      var iEndY = (iBlockSize * iGridRows) + iGridY;
+      
+      oContext.beginPath();  
+      oContext.moveTo(iStartX, iStartY);  
+      oContext.lineTo(iEndX,iEndY);  
+      oContext.stroke();  
+    }
+    
+    // draw rows
+    for(var i = 0; i <= iGridRows; i++){
+      var iStartX =  iGridX;
+      var iStartY = (i * iBlockSize) + iGridY;
+      var iEndX = (iBlockSize * iGridColumns) + iGridX;
+      var iEndY = iStartY;
+      
+      oContext.beginPath();  
+      oContext.moveTo(iStartX, iStartY);  
+      oContext.lineTo(iEndX ,iEndY);  
+      oContext.stroke(); 
+    }
+    
+    // draw prexisting grid shapes
+    for(var i = 0; i < iGridRows; i++){
+     for(var j = 0; j < iGridColumns; j++){
+      sColor = oPlayer.aGameBoard[i][j];
+      if(sColor != iEmptyValue){
+       var iX = j*iBlockSize  + iGridX;
+       var iY = i*iBlockSize +  iGridY;
+       drawBlock(iX,iY,iBlockSize,iBlockSize,sColor);
+      } else {/*do nothing*/}
+     }
+    }
+   }
+   
+   // draw shape unit block
+   function drawBlock(fX,fY,fWidth,fHeight,sFill){
+    oContext.fillStyle = sFill;
+    oContext.fillRect(fX,fY,fWidth,fHeight);
+   }  
+
+   // draw shape
+   function drawShape(){   
+    var aThisShape = aShapes[oPlayer.iShapeIndex][oPlayer.iRotationIndex];
+    var sFillStyle = aColors.shapes[oPlayer.iShapeIndex];    
+    
+    // draw shape
+    for(var i in aThisShape){
+     for(var j in aThisShape[i]){     
+      if(aThisShape[i][j] == 1){
+       var iX = j*iBlockSize + (oPlayer.iColumn * iBlockSize) + iGridX;
+       var iY = i*iBlockSize + (oPlayer.iRow * iBlockSize) + iGridY;
+       drawBlock(iX,iY,iBlockSize,iBlockSize,sFillStyle);  
+      }
+     }
+    }   
+   }
+   
+   // return true if the current player shape is collided
+   function isCollision(){
+    var iRow = oPlayer.iRow;
+    var iColumn = oPlayer.iColumn;
+    var aThisShape = aShapes[oPlayer.iShapeIndex][oPlayer.iRotationIndex];        
+    
+    // Loop through shape to see if any are out of bounds or collided with old shapes
+    for(var i in aThisShape){
+     for(var j in aThisShape[i]){           
+      if(aThisShape[i][j] == 1){  
+       // BOUNDARY COLLISION
+       if( iColumn+parseInt(j) < 0 ||(iColumn+parseInt(j)) > (iGridColumns-1) || iRow+parseInt(i) > (iGridRows-1)){         
+        return true;
+       } else {/*do nothing*/}
+
+       // OLD SHAPE COLLISOIN
+       var iCheckRow    = iRow+parseInt(i);
+       var iCheckColumn = iColumn+parseInt(j);
+       if( iCheckRow >= 0    && iCheckRow < iGridRows && 
+           iCheckColumn >= 0 && iCheckColumn < iGridColumns && 
+           oPlayer.aGameBoard[iCheckRow][iCheckColumn] != iEmptyValue ){
+        return true;
+       } else {/*do nothing*/}
+      }
+     }
+    } 
+   
+    console.log('//FRAME!');
+    return false;
+   }
+   
+   // traces the passed array grid
+   function traceGrid(aGridArray){
+    var str = '';
+    for(var i =0;i<iGridRows ;i++){
+     for(var j =0;j < iGridColumns;j++){
+      str += aGridArray[i][j];
+     }
+      str+='<br/>';
+    }
+    trace(str);
+   }
+   
+   // loads shape into grid
+   function putShapeToGrid(){
+    var aGameBoard = oPlayer.aGameBoard;   
+    var aShape     = aShapes[oPlayer.iShapeIndex][oPlayer.iRotationIndex]; 
+    var sFillStyle = aColors.shapes[oPlayer.iShapeIndex];
+
+    // loop over shape and update grid with fill color
+    var str = '';
+    for(var i = 0; i<aShape.length;i++){
+     for(var j = 0; j<aShape[i].length;j++){
+       if(aShape[i][j]==1){
+        aGameBoard[oPlayer.iRow+i][oPlayer.iColumn+j] = sFillStyle;
+       } else {/*do nothing*/}
+     } 
+    }   
+   }
+
+   // handle shape for current frame 
+   function cycleShape(){
+    var bReset = false; // resetter
+    // initial condition - random shape & rotation
+    if(oPlayer.iShapeIndex == -1){    
+     oPlayer.iShapeIndex = Math.floor(Math.random() * aShapes.length);
+     oPlayer.iRotationIndex = 0;
+     
+    } else {/*do nothing*/}
+    
+    
+    // keyboard events
+    if(bWDown && bWRepeat){ // ROTATE //////////////////////////////////////////////////
+     var iLastRotation = oPlayer.iRotationIndex;
+     oPlayer.iRotationIndex++;
+     // cycle to 1st element if rotation is beyond bounds
+     if(oPlayer.iRotationIndex > (aShapes[oPlayer.iShapeIndex].length - 1)){
+      oPlayer.iRotationIndex = 0;
+     } else {/*do nothing*/}                 
+     bWRepeat = false; // can't rotate again until keyup event
+     // reset if collision     
+     if(isCollision()){
+      oPlayer.iRotationIndex = iLastRotation;
+      bWRepeat = true;
+     } else {/*do nothing*/}     
+     
+     
+    } else if(bADown){ // LEFT ////////////////////////////////////////////////////
+     oPlayer.iColumn--;
+     // reset if collision
+     if(isCollision()){
+      oPlayer.iColumn++;
+     } else {/*do nothing*/}
+     
+    } else if(bSDown){ // DOWN ////////////////////////////////////////////////////     
+     oPlayer.iRow++;  
+     if(isCollision()){ oPlayer.iRow--;}else{/*do nothing*/}   
+     
+    } else if(bDDown){ // RIGHT //////////////////////////////////////////////
+     oPlayer.iColumn++;     
+     // reset if collision
+     if(isCollision()){
+      oPlayer.iColumn--;
+     } else {/*do nothing*/}
+          
+    }else{/*do nothing*/}
+    
+    
+    // increase row?
+    if(iDropCounter == iDropDelay){
+     oPlayer.iRow++;
+     if(isCollision()){ 
+      oPlayer.iRow--; // oops go back!
+      // lock that motherF*cker in place and reset
+      putShapeToGrid();
+      bReset = true;
+     }else{/*do nothing*/}
+
+     iDropCounter = 0;
+    } else {/*do nothing*/}
+    
+    // collision - move back
+    
+    drawShape();
+   
+    // reset shape if needed
+    if(bReset){
+     oPlayer.iRow           = iStartRow;
+     oPlayer.iColumn        = iStartColumn;
+     oPlayer.iShapeIndex    = Math.floor(Math.random() * aShapes.length);
+     oPlayer.iRotationIndex = 0;
+     
+    }else{/*do nothing*/}
+    iDropCounter++;
+   }
+   
+   // assumes all images are loaded
+   function displayLoop(){  
+    oContext.fillStyle = 'rgb(0,0,0)';
+    oContext.fillRect(0,0,iCanvasSize,iCanvasSize);    
+    
+    // draw grid
+    drawGrid();
+    
+    
+    cycleShape();
+    
+    iFrameNumber+=1;
+   }
+   
+   // register event handlers
+   document.onmousemove = mouseHandler;
+   document.onmousedown = mouseHandler;
+   document.onkeydown   = keyboardHandler;
+   document.onkeyup     = keyboardHandler;
+  </script>
+ </head>
+ <body>
+ <canvas id="canvas0" width="450" height="450">Blah</canvas>
+ <script>setTimeout('init()',30);</script>
+ <div id="debug"></div>
+ </body>
+</html>	
