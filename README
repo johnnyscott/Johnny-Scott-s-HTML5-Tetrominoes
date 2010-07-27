@@ -1,0 +1,18 @@
+Johnny Scott's HTML5 Tetrominoes
+
+This is a WIP Tetris clone in pure Javascript. It utilizes
+the HTML5 canvas element. You'll need to use a capable
+browser like firefox, safari, or chrome.
+
+
+Change Log
+-------------------------------------------------------
+07/27/2010 09:34:57 AM (CDT) 
+* blocks stack and new blocks load after drop collision
+
+TO DO
+* clear filled rows
+* improve block appearance to bezeled
+* add points display 
+* add next block display 
+
