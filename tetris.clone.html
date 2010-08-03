@@ -35,10 +35,18 @@
    var oContext;
    var oDebug;
    var iTraceCnt = 0;
-   var iMAX_TRACE = 10;
+   var iMAX_TRACE = 1000;
    var bIsPaused = true;
    var iFrameNumber = 0;
    var iCanvasSize = 450;
+   var iCanvasWidth  = 690;
+   var iCanvasHeight = 464;
+   
+   var sGameMode = 'menu';
+   
+   var aGAME_MODES = {'menu':0,'playing':1,'lose':3};
+   var bTransitionToPlay = false; // boolean to go between title and playing
+   var iTransitionToPlayFrame = -1; // frame at which transition starts
    
    var iImagesToLoad = 0;
    var iImagesLoaded = 0;  
@@ -46,17 +54,27 @@
    
    // key codes
    var iW_KEY =87;
-   var iA_KEY =65;
-   var iS_KEY =83;
-   var iD_KEY =68;
-   // key states
+   var iA_KEY =65; var iAkeyLastPressed = -1; var bForceFirstA = true; var iLeftRightDelay = 85;  // ms between repeats of leftright
+   var iS_KEY =83; 
+   var iD_KEY =68; var iDkeyLastPressed = -1; var bForceFirstD = true; 
+   
+   
+   // key / mouse states
    var bWDown = false;
    var bADown = false;
    var bSDown = false;
    var bDDown = false;
+   var bMouseDown = false;
    var bWRepeat = true;
    
-   var aImageSet = {};
+   
+   var aImageSet = new Array();
+   var iBG_IMG = 0; aImageSet[iBG_IMG] = {'path':'bg.png','object':null};
+   var iTITLE_IMG = 1; aImageSet[iTITLE_IMG] = {'path':'title.png','object':null};
+   var iNAME_IMG = 2; aImageSet[iNAME_IMG] = {'path':'title-name.png','object':null};
+   var iPAUSED_IMG = 3; aImageSet[iPAUSED_IMG] = {'path':'paused.png','object':null};
+   var iBOARDBG_IMG = 4; aImageSet[iBOARDBG_IMG] = {'path':'board-bg.png','object':null};
+   var iGLOW_IMG = 5; aImageSet[iGLOW_IMG] = {'path':'glow.png','object':null};
    
    var aColors = {'shapes':['#f0a000','#0000f0','#f0f000','#a000f0','#f00000','#00f000','#00f0f0']};
    
@@ -178,8 +196,8 @@ if(true){
    var iStartColumn = 3;
    var oPlayer = { 'iShapeIndex':-1, 'iRotationIndex':-1,  'iRow':iStartRow, 'iColumn':iStartColumn, 'aGameBoard':[] };
    
-   var iGridX       = 60;
-   var iGridY       = 10;
+   var iGridX       = 114;
+   var iGridY       = 57;
    
    var iGridColumns = 10;
    var iGridRows    = 18;
@@ -187,11 +205,11 @@ if(true){
 
    var iBlockSize   = 20; // height and width of a trominoe unit
    
-   var sGridStrokeStyle = 'rgb(128,128,128)'; // color of play field grid
+   var sGridStrokeStyle = 'rgb(50,50,50)'; // color of play field grid
    var iGridStrokeWidth = 1;
    
    function o(sId){ return document.getElementById(sId); }
-   function trace(sStr){
+   function trace(sStr){ 
     if(iTraceCnt > iMAX_TRACE){oDebug.innerHTML = ''; iTraceCnt = 0; }
     oDebug.innerHTML += sStr + '<br/>' ;
     oDebug.scrollTop = oDebug.scrollHeight;
@@ -207,6 +225,7 @@ if(true){
      clearInterval(iDlInterval);
      iDlInterval = null;
      bIsPaused = true;
+     oContext.drawImage(aImageSet[iPAUSED_IMG].object,0,0);
     }else {/*should not happen*/}
     
    }
@@ -231,10 +250,11 @@ if(true){
     } else {/*do nothing*/}
    }
    
-   function loadImages(){
+   function loadImages(){ 
     // load images
     for( var sImageId in aImageSet){
      iImagesToLoad++;
+     
      var sPath = aImageSet[sImageId].path;
      aImageSet[sImageId].object = new Image()
      aImageSet[sImageId].object.onload = imageLoaded;
@@ -264,6 +284,9 @@ if(true){
     }
    }
    
+   // get unix time in milliseconds
+   function unixTime(){ return new Date().getTime(); }
+   
    // keyboardHandler - handles keyboard events
    function keyboardHandler(e){   
     
@@ -271,9 +294,9 @@ if(true){
       case 'keydown':         
         switch(e.keyCode){
          case iW_KEY: bWDown = true; break;
-         case iA_KEY: bADown = true; break;
+         case iA_KEY: if(!bADown){iAkeyLastPressed = unixTime();bForceFirstA=true; } else {bForceFirstA=false; } bADown = true;  break;
          case iS_KEY: bSDown = true; break;
-         case iD_KEY: bDDown = true; break;
+         case iD_KEY: if(!bDDown){iDkeyLastPressed = unixTime();bForceFirstD=true;  } else {bForceFirstD=false;}  bDDown = true;  break;
          default:/*do nothing*/break;
         }       
       break;
@@ -297,10 +320,14 @@ if(true){
    function mouseHandler(e){
     switch(e.type){
      case 'mousemove':
-     iMouseX = e.clientX;
-     iMouseY = e.clientY;   
+      iMouseX = e.clientX;
+      iMouseY = e.clientY;   
      break;
      case 'mousedown':
+      bMouseDown = true; 
+     break;
+     case 'mouseup':
+      bMouseDown = false; 
      break;
     }
    }	
@@ -349,10 +376,36 @@ if(true){
     }
    }
    
+   // offsets a color keeps between 0 and 255 and returns hex
+   function cO(iNumber,iOffset,iFactor){
+    iNumber = (iNumber*iFactor) + iOffset;
+    if(iNumber<0){iNumber=0;}else if(iNumber>255){iNumber=255;}else{/**/}
+    var sNumberHex = iNumber.toString(16);
+    if(sNumberHex.length==1){sNumberHex='0'+sNumberHex;}else{/**/}
+    return sNumberHex;
+   }
+   
    // draw shape unit block
    function drawBlock(fX,fY,fWidth,fHeight,sFill){
     oContext.fillStyle = sFill;
     oContext.fillRect(fX,fY,fWidth,fHeight);
+    
+    var iR = parseInt(sFill.substring(1,3),16);
+    var iG = parseInt(sFill.substring(3,5),16);
+    var iB = parseInt(sFill.substring(5),16);
+    
+
+    oContext.fillStyle = '#' + cO(iR,90,1.25)+cO(iG,90,1.25)+cO(iB,90,1.25);
+    oContext.fillRect(fX,fY,3,fHeight); 
+    oContext.fillStyle = '#' + cO(iR,-1,.85)+cO(iG,-1,.85)+cO(iB,-1,.85);
+    oContext.fillRect(fX+fWidth-3,fY,3,fHeight); 
+    oContext.fillStyle = '#' + cO(iR,-2,.65)+cO(iG,-2,.65)+cO(iB,-2,.65);
+    oContext.fillRect(fX,fY+fHeight-3,fWidth,3);      
+    oContext.fillStyle = '#' + cO(iR,160,1.3)+cO(iG,160,1.3)+cO(iB,160,1.3);
+    oContext.fillRect(fX,fY,fWidth,3);
+    
+    
+    
    }  
 
    // draw shape
@@ -414,7 +467,7 @@ if(true){
     trace(str);
    }
    
-   // loads shape into grid
+   // loads shape into grid on drop position
    function putShapeToGrid(){
     var aGameBoard = oPlayer.aGameBoard;   
     var aShape     = aShapes[oPlayer.iShapeIndex][oPlayer.iRotationIndex]; 
@@ -431,6 +484,42 @@ if(true){
     }   
    }
 
+   
+   
+    // eliminate filled rows and update grid
+   function filledRow(){   
+      var aBoard = oPlayer.aGameBoard;   
+      var iRowIndex = -1; // index of row to start drop above to 
+      
+      // 1) CLEAR FILLED ROWS ////////////////////////////////////
+      for(var iRow = aBoard.length -1; iRow > -1; iRow--){
+       // is this row filled?
+       var bRowFilled = true;
+       for(var iCol = 0; iCol < aBoard[iRow].length; iCol++){
+        if( aBoard[iRow][iCol] == iEmptyValue ){ bRowFilled = false; break; }else{/*do nothing*/}
+       }
+       // if the row is filled clear it
+       if(bRowFilled){
+        // reset start drop row index if needed
+        if(iRow > iRowIndex){iRowIndex = iRow;}else{/*do nothing*/}
+        
+        // shift rows above down 1
+        for(var iR = iRowIndex-1; iR > -1; iR--){
+         for(var iC = 0; iC < aBoard[iR+1].length; iC++){
+          var sVal = '';
+          if(iR == 0){sVal = iEmptyValue;}else{sVal = aBoard[iR][iC]; }
+          aBoard[iR+1][iC] = sVal;
+         }
+        }
+        
+        iRow = iRowIndex+1;
+        iRowIndex = -1;
+        // get out 
+       }else{}      
+      }
+   }
+   
+   
    // handle shape for current frame 
    function cycleShape(){
     var bReset = false; // resetter
@@ -458,34 +547,51 @@ if(true){
      } else {/*do nothing*/}     
      
      
-    } else if(bADown){ // LEFT ////////////////////////////////////////////////////
-     oPlayer.iColumn--;
-     // reset if collision
-     if(isCollision()){
-      oPlayer.iColumn++;
-     } else {/*do nothing*/}
+    } else if(bADown){ // LEFT ////////////////////////////////////////////////////   
+     // time delay
+     if(unixTime() - iAkeyLastPressed >= iLeftRightDelay || bForceFirstA){
+      iAkeyLastPressed = unixTime();
+      bForceFirstA = false;
+      
+      oPlayer.iColumn--;
+      // reset if collision
+      if(isCollision()){
+       oPlayer.iColumn++;
+      } else {/*do nothing*/}      
+     } else {/*do nothing*/}     
+     
      
     } else if(bSDown){ // DOWN ////////////////////////////////////////////////////     
      oPlayer.iRow++;  
      if(isCollision()){ oPlayer.iRow--;}else{/*do nothing*/}   
      
+     
     } else if(bDDown){ // RIGHT //////////////////////////////////////////////
-     oPlayer.iColumn++;     
-     // reset if collision
-     if(isCollision()){
-      oPlayer.iColumn--;
-     } else {/*do nothing*/}
-          
-    }else{/*do nothing*/}
+     // time delay
+     if(unixTime() - iDkeyLastPressed >= iLeftRightDelay || bForceFirstD){
+      iDkeyLastPressed = unixTime();
+      bForceFirstD = false;
+      
+      oPlayer.iColumn++;           
+      // reset if collision
+      if(isCollision()){
+       oPlayer.iColumn--;
+      } else {/*do nothing*/}
+
+     } else {/*do nothing*/}              
+
+     }else{/*do nothing*/}
     
     
-    // increase row?
+    // increase row? /////////////////////////////////
     if(iDropCounter == iDropDelay){
      oPlayer.iRow++;
      if(isCollision()){ 
       oPlayer.iRow--; // oops go back!
       // lock that motherF*cker in place and reset
       putShapeToGrid();
+      // check for filled row
+      filledRow();
       bReset = true;
      }else{/*do nothing*/}
 
@@ -508,28 +614,68 @@ if(true){
    }
    
    // assumes all images are loaded
-   function displayLoop(){  
-    oContext.fillStyle = 'rgb(0,0,0)';
-    oContext.fillRect(0,0,iCanvasSize,iCanvasSize);    
+   function displayLoop(){ 
+        
     
-    // draw grid
-    drawGrid();
+    switch(sGameMode){
+     case 'menu': 
+     var iTitleOffset = 0; //
+     var iBoardOffset = -450;
+     // should we transition to playing mode?
+     if(bMouseDown && !bTransitionToPlay){ bTransitionToPlay = true; iTransitionToPlayFrame = iFrameNumber;} else {/**/}
+     
+     // set offset of title (drop title down)
+     if(bTransitionToPlay){ 
+      var fPercent = (iFrameNumber - iTransitionToPlayFrame)/32;
+      if(fPercent > 1){ fPercent = 1; sGameMode='playing';}
+      
+      iTitleOffset = (Math.sin((iFrameNumber)/10)   *12) + Math.sin((fPercent)*(Math.PI/2))   *142;
+      iBoardOffset = iBoardOffset + (Math.sin((fPercent)*(Math.PI/2)) * 450);
+      
+     } else{
+      iTitleOffset = Math.sin((iFrameNumber)/10)   *12;
+     }
+     
+      oContext.fillStyle = 'rgba(0,0,0,1)';
+      oContext.fillRect(0,0,iCanvasWidth,iCanvasHeight);   
+      oContext.drawImage(aImageSet[iBG_IMG].object,0,0); 
+      var iY = iTitleOffset;// + Math.floor(10 * Math.sin(iFrameNumber/7));
+      oContext.drawImage(aImageSet[iTITLE_IMG].object,0,iY); 
+      oContext.drawImage(aImageSet[iNAME_IMG].object,0,0);
+      oContext.drawImage(aImageSet[iBOARDBG_IMG].object,0,iBoardOffset);
+      oContext.drawImage(aImageSet[iGLOW_IMG].object,0,iBoardOffset);
+     break;
+     
+     case 'playing':
+      
+      oContext.fillStyle = 'rgba(0,0,0,1)';
+      oContext.fillRect(0,0,iCanvasWidth,iCanvasHeight);   
+      oContext.drawImage(aImageSet[iBG_IMG].object,0,0); 
+      oContext.drawImage(aImageSet[iNAME_IMG].object,0,0);
+      oContext.drawImage(aImageSet[iBOARDBG_IMG].object,0,0);
+      drawGrid();
     
     
-    cycleShape();
+      cycleShape();
+      
+      oContext.drawImage(aImageSet[iGLOW_IMG].object,0,0);
+      
+     break;
     
+    }
     iFrameNumber+=1;
    }
    
    // register event handlers
    document.onmousemove = mouseHandler;
    document.onmousedown = mouseHandler;
+   document.onmouseup = mouseHandler;
    document.onkeydown   = keyboardHandler;
    document.onkeyup     = keyboardHandler;
   </script>
  </head>
  <body>
- <canvas id="canvas0" width="450" height="450">Blah</canvas>
+ <canvas id="canvas0" width="690" height="464">Blah</canvas>
  <script>setTimeout('init()',30);</script>
  <div id="debug"></div>
  </body>
