@@ -205,7 +205,7 @@ if(true){
 
    var iBlockSize   = 20; // height and width of a trominoe unit
    
-   var sGridStrokeStyle = 'rgb(50,50,50)'; // color of play field grid
+   var sGridStrokeStyle = 'rgb(70,70,80)'; // color of play field grid
    var iGridStrokeWidth = 1;
    
    function o(sId){ return document.getElementById(sId); }
@@ -615,7 +615,8 @@ if(true){
    
    // assumes all images are loaded
    function displayLoop(){ 
-        
+       
+    iFrameNumber++; 
     
     switch(sGameMode){
      case 'menu': 
@@ -657,13 +658,18 @@ if(true){
     
     
       cycleShape();
-      
+      var iGlowVary = 1- (.2*Math.abs(Math.sin(iFrameNumber/20).toFixed(2)));
+      if(iFrameNumber %4 == 0 && Math.random()>.9){
+        iGlowVary += ((Math.random()-.5)*.1);
+      } else {}
+      oContext.globalAlpha = iGlowVary;
       oContext.drawImage(aImageSet[iGLOW_IMG].object,0,0);
+      oContext.globalAlpha = 1;
       
      break;
     
     }
-    iFrameNumber+=1;
+
    }
    
    // register event handlers
