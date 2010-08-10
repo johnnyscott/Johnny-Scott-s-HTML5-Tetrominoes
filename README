@@ -7,6 +7,19 @@ browser like firefox, safari, or chrome.
 
 Change Log
 -------------------------------------------------------
+08/09/2010 09:53    PM (CDT)
+* rows clear
+* block appearance is bezeled
+* points, level, and next piece display work
+* has 10 levels 1-10 with increasing difficulty
+
+TO DO
+* detect game over
+* add game over animation and screen
+* click to restart
+* add sounds and (possibly) music
+
+
 07/27/2010 09:34:57 AM (CDT) 
 * blocks stack and new blocks load after drop collision
 

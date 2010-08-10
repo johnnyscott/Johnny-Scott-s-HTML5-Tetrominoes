@@ -26,16 +26,18 @@
   /*
     size of play area - 10 wide X 18 tall
   */
-   var iFrameRate = 30;
-   var iLevel = 1;
+   var iFrameRate = 30;   
    var iDropCounter = 0;
    var iDropDelay = 30; // frames between dropping shape one row down
+   var iDROP_DELAY_START = 30;
+   var iDROP_DELAY_MIN = 2; // fastest speed level
+   var iMAX_LEVELS = 10;
    var iMouseX = 0;
    var iMouseY = 0;
    var oContext;
    var oDebug;
    var iTraceCnt = 0;
-   var iMAX_TRACE = 1000;
+   var iMAX_TRACE = 1;
    var bIsPaused = true;
    var iFrameNumber = 0;
    var iCanvasSize = 450;
@@ -43,6 +45,8 @@
    var iCanvasHeight = 464;
    
    var sGameMode = 'menu';
+   var iCLEAR_SCORE = 2124; // base value of clearing a row
+   var iSCORE_PER_LEVEL = 30500; // score to advance a level
    
    var aGAME_MODES = {'menu':0,'playing':1,'lose':3};
    var bTransitionToPlay = false; // boolean to go between title and playing
@@ -75,8 +79,27 @@
    var iPAUSED_IMG = 3; aImageSet[iPAUSED_IMG] = {'path':'paused.png','object':null};
    var iBOARDBG_IMG = 4; aImageSet[iBOARDBG_IMG] = {'path':'board-bg.png','object':null};
    var iGLOW_IMG = 5; aImageSet[iGLOW_IMG] = {'path':'glow.png','object':null};
+   var i0_IMG = 6; aImageSet[i0_IMG] = {'path':'0.png','object':null};
+   var i1_IMG = 7; aImageSet[i1_IMG] = {'path':'1.png','object':null};
+   var i2_IMG = 8; aImageSet[i2_IMG] = {'path':'2.png','object':null};
+   var i3_IMG = 9; aImageSet[i3_IMG] = {'path':'3.png','object':null};
+   var i4_IMG = 10; aImageSet[i4_IMG] = {'path':'4.png','object':null};
+   var i5_IMG = 11; aImageSet[i5_IMG] = {'path':'5.png','object':null};
+   var i6_IMG = 12; aImageSet[i6_IMG] = {'path':'6.png','object':null};
+   var i7_IMG = 13; aImageSet[i7_IMG] = {'path':'7.png','object':null};
+   var i8_IMG = 14; aImageSet[i8_IMG] = {'path':'8.png','object':null};
+   var i9_IMG = 15; aImageSet[i9_IMG] = {'path':'9.png','object':null};
    
    var aColors = {'shapes':['#f0a000','#0000f0','#f0f000','#a000f0','#f00000','#00f000','#00f0f0']};
+   
+   // name of shapes mapped to index in shape array
+   var iSHAPE_L = 0;
+   var iSHAPE_LBACKWARDS = 1;
+   var iSHAPE_BOX = 2;
+   var iSHAPE_T = 3;
+   var iSHAPE_Z = 4;
+   var iSHAPE_S = 5;
+   var iSHAPE_I = 6;
    
    // set of shapes each with 4 rotations
 if(true){
@@ -194,7 +217,7 @@ if(true){
 } else {/*do nothing*/}
    var iStartRow    = -1;
    var iStartColumn = 3;
-   var oPlayer = { 'iShapeIndex':-1, 'iRotationIndex':-1,  'iRow':iStartRow, 'iColumn':iStartColumn, 'aGameBoard':[] };
+   var oPlayer = { 'iShapeIndex':-1, 'iRotationIndex':-1,'iShapeIndexNext':-1,  'iRow':iStartRow, 'iColumn':iStartColumn, 'aGameBoard':[], 'iScore':0, 'iLevel':1 };
    
    var iGridX       = 114;
    var iGridY       = 57;
@@ -205,7 +228,7 @@ if(true){
 
    var iBlockSize   = 20; // height and width of a trominoe unit
    
-   var sGridStrokeStyle = 'rgb(70,70,80)'; // color of play field grid
+   var sGridStrokeStyle = 'rgb(30,30,50)'; // color of play field grid
    var iGridStrokeWidth = 1;
    
    function o(sId){ return document.getElementById(sId); }
@@ -274,7 +297,16 @@ if(true){
      for(var j = 0; j < iGridColumns; j++){      
       oPlayer.aGameBoard[i][j] = iEmptyValue;   
      }
-    }    
+    }  
+
+    // initial condition - random shape & rotation
+    if(oPlayer.iShapeIndex == -1){    
+     oPlayer.iShapeIndex = Math.floor(Math.random() * aShapes.length);
+     oPlayer.iShapeIndexNext = Math.floor(Math.random() * aShapes.length);
+     oPlayer.iRotationIndex = 0;
+     
+    } else {/*do nothing*/}
+    
    
     if(aImageSet.length > 0){
      // start loading images
@@ -490,6 +522,7 @@ if(true){
    function filledRow(){   
       var aBoard = oPlayer.aGameBoard;   
       var iRowIndex = -1; // index of row to start drop above to 
+      var iFilledCount = 0;
       
       // 1) CLEAR FILLED ROWS ////////////////////////////////////
       for(var iRow = aBoard.length -1; iRow > -1; iRow--){
@@ -500,6 +533,7 @@ if(true){
        }
        // if the row is filled clear it
        if(bRowFilled){
+        iFilledCount++;
         // reset start drop row index if needed
         if(iRow > iRowIndex){iRowIndex = iRow;}else{/*do nothing*/}
         
@@ -517,20 +551,16 @@ if(true){
         // get out 
        }else{}      
       }
+      
+      // update score
+      oPlayer.iScore += ((iCLEAR_SCORE *iFilledCount) * iFilledCount);
    }
    
    
    // handle shape for current frame 
    function cycleShape(){
     var bReset = false; // resetter
-    // initial condition - random shape & rotation
-    if(oPlayer.iShapeIndex == -1){    
-     oPlayer.iShapeIndex = Math.floor(Math.random() * aShapes.length);
-     oPlayer.iRotationIndex = 0;
-     
-    } else {/*do nothing*/}
-    
-    
+
     // keyboard events
     if(bWDown && bWRepeat){ // ROTATE //////////////////////////////////////////////////
      var iLastRotation = oPlayer.iRotationIndex;
@@ -586,6 +616,8 @@ if(true){
     // increase row? /////////////////////////////////
     if(iDropCounter == iDropDelay){
      oPlayer.iRow++;
+     // increase score for each drop by 1
+     oPlayer.iScore+=21;
      if(isCollision()){ 
       oPlayer.iRow--; // oops go back!
       // lock that motherF*cker in place and reset
@@ -604,13 +636,103 @@ if(true){
    
     // reset shape if needed
     if(bReset){
-     oPlayer.iRow           = iStartRow;
-     oPlayer.iColumn        = iStartColumn;
-     oPlayer.iShapeIndex    = Math.floor(Math.random() * aShapes.length);
+     oPlayer.iRow            = iStartRow;
+     oPlayer.iColumn         = iStartColumn;
+     oPlayer.iShapeIndex     = oPlayer.iShapeIndexNext;
+     oPlayer.iShapeIndexNext = Math.floor(Math.random() * aShapes.length);
      oPlayer.iRotationIndex = 0;
+     // determine level and speed
+     oPlayer.iLevel = Math.ceil(oPlayer.iScore/iSCORE_PER_LEVEL);
+     //var iMaxLevel = iDROP_DELAY_START - iDROP_DELAY_MIN; // 28
+     if(oPlayer.iLevel > iMAX_LEVELS) {oPlayer.iLevel = iMAX_LEVELS;}else{/*do nothing*/}
+     iDropDelay = 30-((oPlayer.iLevel -1)*3); // frames between dropping shape one row down
      
     }else{/*do nothing*/}
     iDropCounter++;
+   }
+   
+   // draws score, level, and next shape
+   function drawOverlays(){ 
+    // draw score /////////////////////////////////////////////////
+    var iScoreOffsetX = 590;
+    var iScoreOffsetY = 103;
+    var sScore = oPlayer.iScore.toString();
+  
+    var iGlowVary = 1- (.3*Math.abs(Math.sin(iFrameNumber/7).toFixed(2)));
+    if(iFrameNumber %2 == 0 && Math.random()>.8){
+      iGlowVary += ((Math.random()-.5)*.3);
+    } else {}
+    oContext.globalAlpha = iGlowVary;
+   
+  
+    for(var i = sScore.length -1; i> -1;i--){
+     var sChar = sScore.charAt(i);
+     var iDigitX =  iScoreOffsetX - ((sScore.length -1 - i) * 30); 
+     var iDigitY = iScoreOffsetY;  
+     oContext.drawImage(aImageSet[6+parseInt(sChar)].object,iDigitX,iDigitY,29,21);
+    }
+    
+    oContext.globalAlpha = 1;    
+    
+    
+    
+    // draw level ////////////////////////////////////////////////
+    var iLevelOffsetX = 82;
+    var iLevelOffsetY = 235;
+    var sLevel = oPlayer.iLevel.toString();
+    var iLevelOffset = 0;
+    if(oPlayer.iLevel <10){ iLevelOffset = -8;}else{/*do nothign*/}
+
+    iGlowVary = 1- (.7*Math.abs(Math.sin(iFrameNumber/70).toFixed(2)));
+    if(iFrameNumber %8 == 0 && Math.random()>.6){
+      iGlowVary += ((Math.random()-.5)*.2);
+    } else {}
+    oContext.globalAlpha = iGlowVary;   
+     oContext.globalCompositeOperation = 'lighter';
+    for(var i = sLevel.length -1; i> -1;i--){
+     var sChar   = sLevel.charAt(i);
+     var iDigitX = iLevelOffsetX - ((sLevel.length -1 - i) * 24); 
+     var iDigitY = iLevelOffsetY;  
+     oContext.drawImage(aImageSet[6+parseInt(sChar)].object,iDigitX+iLevelOffset,iDigitY,25,31);
+      oContext.drawImage(aImageSet[6+parseInt(sChar)].object,iDigitX+iLevelOffset,iDigitY,21,31);
+      
+    }
+    
+    oContext.globalAlpha = 1;
+    
+    var sOldFill = oContext.fillStyle;
+    oContext.fillStyle ='rgba(200,0,0,.7)';
+    oContext.fillRect(62,234,49,36);
+    oContext.fillStyle = sOldFill;
+    oContext.globalCompositeOperation = 'source-over';
+    
+    
+    
+    // draw nextShape ////////////////////////////////////////////////
+    var aThisShape = aShapes[oPlayer.iShapeIndexNext][0];
+    var sFillStyle = aColors.shapes[oPlayer.iShapeIndexNext];    
+    var fNewBlockSize = iBlockSize;
+    var iShapeOffsetX = 0;
+    var iShapeOffsetY = 0;
+    
+    // hackey way to center non fitting shapes could do boundary detection but I'm lazy
+    switch(oPlayer.iShapeIndexNext){
+     case iSHAPE_I: iShapeOffsetX = -11; iShapeOffsetY = 8; break;
+     case iSHAPE_BOX: iShapeOffsetX = -10;iShapeOffsetY = -3; break;
+     default:/*do nothing*/break;
+    }
+    
+    // draw shape
+    for(var i in aThisShape){
+     for(var j in aThisShape[i]){     
+      if(aThisShape[i][j] == 1){
+       var iX = (j*fNewBlockSize) + 430 + iShapeOffsetX + iGridX;
+       var iY = (i*fNewBlockSize) + 189 + iShapeOffsetY  + iGridY;
+       drawBlock(iX,iY,fNewBlockSize,fNewBlockSize,sFillStyle);      
+      }
+     }
+    }   
+     
    }
    
    // assumes all images are loaded
@@ -655,6 +777,8 @@ if(true){
       oContext.drawImage(aImageSet[iNAME_IMG].object,0,0);
       oContext.drawImage(aImageSet[iBOARDBG_IMG].object,0,0);
       drawGrid();
+     
+       drawOverlays();
     
     
       cycleShape();
