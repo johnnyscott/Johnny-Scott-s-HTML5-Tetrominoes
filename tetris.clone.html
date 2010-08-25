@@ -19,6 +19,7 @@
    padding:3px 4px;
    font-size:16px;
    white-space:nowrap;
+   display:none;
   }
   </style>
   <script>
@@ -37,7 +38,7 @@
    var oContext;
    var oDebug;
    var iTraceCnt = 0;
-   var iMAX_TRACE = 1;
+   var iMAX_TRACE = 122222222222;
    var bIsPaused = true;
    var iFrameNumber = 0;
    var iCanvasSize = 450;
@@ -62,6 +63,9 @@
    var iS_KEY =83; 
    var iD_KEY =68; var iDkeyLastPressed = -1; var bForceFirstD = true; 
    
+   // game over animation timing
+   var iGameOverAnimationStartTime = -1;
+   var iGameOverAnimationDurationSeconds = 2;   
    
    // key / mouse states
    var bWDown = false;
@@ -77,6 +81,7 @@
    var iTITLE_IMG = 1; aImageSet[iTITLE_IMG] = {'path':'title.png','object':null};
    var iNAME_IMG = 2; aImageSet[iNAME_IMG] = {'path':'title-name.png','object':null};
    var iPAUSED_IMG = 3; aImageSet[iPAUSED_IMG] = {'path':'paused.png','object':null};
+   var iGAMEOVER_IMG = 16; aImageSet[iGAMEOVER_IMG] = {'path':'gameover.png','object':null};
    var iBOARDBG_IMG = 4; aImageSet[iBOARDBG_IMG] = {'path':'board-bg.png','object':null};
    var iGLOW_IMG = 5; aImageSet[iGLOW_IMG] = {'path':'glow.png','object':null};
    var i0_IMG = 6; aImageSet[i0_IMG] = {'path':'0.png','object':null};
@@ -89,6 +94,7 @@
    var i7_IMG = 13; aImageSet[i7_IMG] = {'path':'7.png','object':null};
    var i8_IMG = 14; aImageSet[i8_IMG] = {'path':'8.png','object':null};
    var i9_IMG = 15; aImageSet[i9_IMG] = {'path':'9.png','object':null};
+   // start at 17 friends
    
    var aColors = {'shapes':['#f0a000','#0000f0','#f0f000','#a000f0','#f00000','#00f000','#00f0f0']};
    
@@ -240,7 +246,9 @@ if(true){
    }
    
    function togglePause(e){
-   
+    // no pause if gameover
+    if(sGameMode == 'gameover'){ return; }else{/**/}
+	
     if(e.type=='mouseover' && iDlInterval == null){
      iDlInterval = setInterval('displayLoop()',Math.ceil(1000/iFrameRate));      
      bIsPaused = false;     
@@ -561,6 +569,10 @@ if(true){
    function cycleShape(){
     var bReset = false; // resetter
 
+	// check for game over (collision)
+	if(isCollision()){
+	 sGameMode = 'gameover';
+	} else {/*do nothing*/}
     // keyboard events
     if(bWDown && bWRepeat){ // ROTATE //////////////////////////////////////////////////
      var iLastRotation = oPlayer.iRotationIndex;
@@ -791,6 +803,58 @@ if(true){
       oContext.globalAlpha = 1;
       
      break;
+	 
+	 /******* GAME OVER ********/
+	 case 'gameover':
+      	 
+	  // do animation
+	  var iCurrentTime = unixTime();
+      if(iGameOverAnimationStartTime == -1){ iGameOverAnimationStartTime = unixTime(); } else {/**/}
+      
+	  
+	  // reset to menu state if animation is done
+	  if(iGameOverAnimationStartTime!=-1 && iCurrentTime - iGameOverAnimationStartTime >= iGameOverAnimationDurationSeconds * 1000){
+	   sGameMode = 'menu';
+	   bTransitionToPlay = false;
+	   iGameOverAnimationStartTime = -1;
+	   // reset game to start values
+	   oPlayer['iShapeIndex']=-1;
+	   oPlayer['iRotationIndex']=-1;
+	   oPlayer['iShapeIndexNext']=-1;
+	   oPlayer['iRow']=iStartRow;
+	   oPlayer['iColumn']=iStartColumn;
+	   oPlayer['iScore']=0;
+	   oPlayer['iLevel']=1;
+	   //initialize gameboard with empties
+	   for(var i = 0; i < iGridRows; i++){
+		oPlayer.aGameBoard[i] = [];
+		for(var j = 0; j < iGridColumns; j++){      
+		 oPlayer.aGameBoard[i][j] = iEmptyValue;   
+		}
+	   }  
+       oPlayer.iShapeIndex = Math.floor(Math.random() * aShapes.length);
+       oPlayer.iShapeIndexNext = Math.floor(Math.random() * aShapes.length);
+       oPlayer.iRotationIndex = 0;   	   
+	   return;
+	  }else{/*do nothing*/}
+	  
+	  // continue animation
+	  var iTotalSquares = iGridColumns * iGridRows;
+	  var iSquareIntervalMillis = Math.floor((iGameOverAnimationDurationSeconds * 1000)/iTotalSquares);
+	  var iSquaresToDraw = Math.ceil((iCurrentTime - iGameOverAnimationStartTime)/iSquareIntervalMillis)
+	  var iCurrentRow = iGridRows-1;
+	  var iCurrentCol = iGridColumns-1;
+	  // ensure we don't draw more than total
+	  if(iSquaresToDraw > iTotalSquares){iSquaresToDraw=iTotalSquares;} else {/*do nothing*/}
+	  for(var i = 0; i < iSquaresToDraw; i++){    
+	   var sGOstyle = aColors['shapes'][Math.floor(Math.random() * aColors['shapes'].length)];
+	   drawBlock(iGridX+(iBlockSize*iCurrentCol),iGridY+(iBlockSize*iCurrentRow),iBlockSize,iBlockSize,sGOstyle);  
+	   iCurrentCol--;
+	   if(iCurrentCol < 0){iCurrentRow--;iCurrentCol=iGridColumns-1;}else{/*do nothing*/}
+	  }
+	  
+	  
+	  break;
     
     }
 
