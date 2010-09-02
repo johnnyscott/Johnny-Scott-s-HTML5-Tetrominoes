@@ -1,3 +1,17 @@
+<!--
+TITLE ************* Tetrominoes (in space)
+REV *************** 7 (roughly)
+AUTHOR ************ Johnny Scott (broken.1981@gmail.com)
+MUSIC BY ********** Chthonic from OverClocked ReMix (http://ocremix.org/artist/4651/chthonic)
+DATE ************** 9/2/2010 2:07AM CST
+CODE LICENSE ****** You may use this code however you wish if I can get credit for being the originator
+MUSIC LICENSE ***** All rights belong to Chthonic you need his permission to reuse that
+
+Feel free to contact me with thoughts or improvements or whatever.
+
+NOTES: Use an html5 capable browser, prerably Google Chrome, or Safari, and lastly firefox because it doesn't seem able to play local ogg files...go figure
+CYA!
+-->
 <html>
  <head>
   <style>
@@ -21,6 +35,18 @@
    white-space:nowrap;
    display:none;
   }
+  div.mute{
+   background:blue;
+   position:absolute;
+   top:11px;
+   left:600px;
+  }
+  div.mute img{
+   position:absolute;
+   top:0px;
+   left:0px;
+   cursor:hand;
+  }
   </style>
   <script>
   
@@ -35,17 +61,17 @@
    var iMAX_LEVELS = 10;
    var iMouseX = 0;
    var iMouseY = 0;
-   var oContext;
-   var oDebug;
+   var oContext; // context object for canvas
+   var oDebug; // debug div for tracing output
    var iTraceCnt = 0;
-   var iMAX_TRACE = 122222222222;
-   var bIsPaused = true;
-   var iFrameNumber = 0;
-   var iCanvasSize = 450;
+   var iMAX_TRACE = 122222222222; // number of traces before debug is cleaned out
+   var bIsPaused = true; 
+   var iFrameNumber = 0; // frame index
+   var iCanvasSize = 450; // used to be square... don't really need methinks
    var iCanvasWidth  = 690;
    var iCanvasHeight = 464;
    
-   var sGameMode = 'menu';
+   var sGameMode = 'menu'; // starting mode
    var iCLEAR_SCORE = 2124; // base value of clearing a row
    var iSCORE_PER_LEVEL = 30500; // score to advance a level
    
@@ -108,7 +134,7 @@
    var iSHAPE_I = 6;
    
    // set of shapes each with 4 rotations
-if(true){
+if(true){ // boolean so I can code-fold :3
    var aShapes = [
                   [// L1
                    [[0,0,0],
@@ -221,29 +247,46 @@ if(true){
                   
                  ];
 } else {/*do nothing*/}
-   var iStartRow    = -1;
-   var iStartColumn = 3;
+
+   var iStartRow    = -1; // row to start game at
+   var iStartColumn = 3; // column to start game at
    var oPlayer = { 'iShapeIndex':-1, 'iRotationIndex':-1,'iShapeIndexNext':-1,  'iRow':iStartRow, 'iColumn':iStartColumn, 'aGameBoard':[], 'iScore':0, 'iLevel':1 };
    
-   var iGridX       = 114;
+   var iGridX       = 114; // offset of playing area
    var iGridY       = 57;
    
-   var iGridColumns = 10;
-   var iGridRows    = 18;
+   var iGridColumns = 10; // how tall is the playing area in blocks?
+   var iGridRows    = 18; // how wide is the playing area in blocks?
    var iEmptyValue  = -1; // value representing an empty spot in the game board
 
-   var iBlockSize   = 20; // height and width of a trominoe unit
+   var iBlockSize   = 20; // height and width of a trominoe unit in pixels
    
    var sGridStrokeStyle = 'rgb(30,30,50)'; // color of play field grid
-   var iGridStrokeWidth = 1;
+   var iGridStrokeWidth = 1; 
    
    function o(sId){ return document.getElementById(sId); }
+   
+   /* trace to a debug div! flush after iMAX_TRACE lines */
    function trace(sStr){ 
     if(iTraceCnt > iMAX_TRACE){oDebug.innerHTML = ''; iTraceCnt = 0; }
     oDebug.innerHTML += sStr + '<br/>' ;
     oDebug.scrollTop = oDebug.scrollHeight;
     iTraceCnt++;
    }
+   
+   
+   function toggleMusic(){
+     if(o('nosound').style.display == 'none'){
+	  o('nosound').style.display = '';
+	  o('yessound').style.display = 'none';
+	  o('music').pause();
+	 }else{
+	  o('nosound').style.display = 'none';
+	  o('yessound').style.display = '';
+	  o('music').play();
+	 }
+   }
+   
    
    function togglePause(e){
     // no pause if gameover
@@ -294,11 +337,12 @@ if(true){
     
    }
    
+   // startup house keeping
    function init(){
     // set global objects
     oContext = o('canvas0').getContext('2d');         
     oDebug = o('debug');
-        
+    o('music').volume=.2;    
     //initialize gameboard with empties
     for(var i = 0; i < iGridRows; i++){
      oPlayer.aGameBoard[i] = [];
@@ -416,7 +460,7 @@ if(true){
     }
    }
    
-   // offsets a color keeps between 0 and 255 and returns hex
+   // offsets a color keeps between 0 and 255 and returns hex used to do borders
    function cO(iNumber,iOffset,iFactor){
     iNumber = (iNumber*iFactor) + iOffset;
     if(iNumber<0){iNumber=0;}else if(iNumber>255){iNumber=255;}else{/**/}
@@ -524,8 +568,7 @@ if(true){
     }   
    }
 
-   
-   
+      
     // eliminate filled rows and update grid
    function filledRow(){   
       var aBoard = oPlayer.aGameBoard;   
@@ -747,7 +790,7 @@ if(true){
      
    }
    
-   // assumes all images are loaded
+   // Base of all the hot tetrominoes action (assumes all images are loaded)
    function displayLoop(){ 
        
     iFrameNumber++; 
@@ -861,7 +904,7 @@ if(true){
 
    }
    
-   // register event handlers
+   // register event handlers WEEEE!!
    document.onmousemove = mouseHandler;
    document.onmousedown = mouseHandler;
    document.onmouseup = mouseHandler;
@@ -872,8 +915,10 @@ if(true){
  <body>
  <canvas id="canvas0" width="690" height="464">Blah</canvas>
  <div>Use WASD keys to rotate and move pieces</div>
- <audio autobuffer autoplay loop>  
-  <source src="Tetris_Linear_Groove_OC_ReMix.mp3" />
+ <div class="mute"><img src="mute-off.png" id="yessound" style="z-index:110;" onClick="toggleMusic();"/><img src="mute-on.png" id="nosound" onClick="toggleMusic();" style="display:none;z-index:100;"/><img src="mute-bg.png"  onClick="toggleMusic();"  style="z-index:90;" /></div>
+ <audio id="music" autobuffer autoplay loop  >  
+  <source src="Tetris_Linear_Groove_OC_ReMix.ogg" type="audio/ogg" />
+  <source src="Tetris_Linear_Groove_OC_ReMix.mp3" type="audio/mp3" />
  </audio>
  <script>setTimeout('init()',30);</script>
  <div id="debug"></div>
